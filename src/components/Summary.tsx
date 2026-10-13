@@ -52,7 +52,10 @@ export function Summary({ survey, onBack, onHome }: Props) {
               const totals = mealTotals(meal);
               return (
                 <tr key={meal.id} className="border-b border-line bg-paper">
-                  <td className="px-2 py-2 font-semibold">{meal.name}</td>
+                  <td className="px-2 py-2 font-semibold">
+                    {meal.name}
+                    {meal.time ? ` · ${meal.time}` : ""}
+                  </td>
                   {NUTRIENT_KEYS.map((key) => (
                     <td key={key} className="num px-2 py-2">
                       {formatNutrient(key, totals[key])}

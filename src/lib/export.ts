@@ -1,7 +1,7 @@
 import type { Workbook, Worksheet } from "exceljs";
 import type { NutrientKey, Survey } from "../types";
 import { NUTRIENT_KEYS, NUTRIENT_LABELS } from "../types";
-import { emptyTotals, mealTotals, roundNutrient, surveyTotals } from "./calc";
+import { emptyTotals, mealTotals, roundNutrient, scaleFood, surveyTotals } from "./calc";
 import { displayName, getFood } from "./foods";
 
 const BLACK = "FF000000";
@@ -133,7 +133,7 @@ function writeAporteTable(sheet: Worksheet, survey: Survey, headerRow: number) {
     const row = sheet.getRow(headerRow + 1 + mealIndex);
     row.height = 18;
     const nameCell = row.getCell(1);
-    nameCell.value = mealDef.label;
+    nameCell.value = meal?.time ? `${mealDef.label} ${meal.time}` : mealDef.label;
     nameCell.font = { name: "Arial", size: 10, bold: true, color: { argb: WHITE } };
     nameCell.alignment = { horizontal: "left", vertical: "middle" };
     paintBlack(nameCell);
@@ -208,27 +208,22 @@ function writePersonHeader(sheet: Worksheet, survey: Survey) {
   });
 }
 
-function writeDetalle(sheet: Worksheet, survey: Survey) {
-  const headers = [
-    "Comida",
-    "Alimento",
-    "Tipo",
-    "Porción pirámide",
-    "gr/ml",
-    "Cant. porciones",
-    ...NUTRIENT_KEYS.map((key) => NUTRIENT_LABELS[key]),
-  ];
-  sheet.addRow(headers);
-  const header = sheet.getRow(1);
-  header.font = { name: "Arial", size: 10, bold: true };
-  header.height = 22;
-
+function mealDetailRows(survey: Survey) {
+  const rows: (string | number)[][] = [];
   for (const meal of survey.meals) {
+    if (meal.items.length === 0) {
+      rows.push([meal.name, meal.time || "", "", "", "", "", ""]);
+      continue;
+    }
     for (const item of meal.items) {
       const food = getFood(item.foodId);
-      if (!food) continue;
-      const dataRow = sheet.addRow([
+      if (!food) {
+        rows.push([meal.name, meal.time || "", "Alimento eliminado", "", "", "", item.portions]);
+        continue;
+      }
+      rows.push([
         meal.name,
+        meal.time || "",
         displayName(food.name),
         food.kind,
         food.household || "",
@@ -236,17 +231,71 @@ function writeDetalle(sheet: Worksheet, survey: Survey) {
         item.portions,
         ...NUTRIENT_KEYS.map((key) => roundNutrient(key, food[key] * item.portions)),
       ]);
-      dataRow.getCell(5).numFmt = "0.00";
-      dataRow.getCell(6).numFmt = "0.00";
+    }
+  }
+  return rows;
+}
+
+function writeDetalle(sheet: Worksheet, surveys: Survey[], includeName = false) {
+  const headers = [
+    ...(includeName ? ["Nombre"] : []),
+    "Comida",
+    "Horario",
+    "Alimento",
+    "Tipo",
+    "Porción pirámide",
+    "gr/ml",
+    "Cant. porciones",
+    ...NUTRIENT_KEYS.map((key) => NUTRIENT_LABELS[key]),
+  ];
+  const header = sheet.addRow(headers);
+  header.font = { name: "Arial", size: 10, bold: true };
+  header.height = 22;
+
+  const nameOffset = includeName ? 1 : 0;
+  for (const survey of surveys) {
+    for (const values of mealDetailRows(survey)) {
+      const dataRow = sheet.addRow(includeName ? [survey.personName || "Sin nombre", ...values] : values);
+      const gramsCol = 6 + nameOffset;
+      const portionsCol = 7 + nameOffset;
+      dataRow.getCell(gramsCol).numFmt = "0.00";
+      dataRow.getCell(portionsCol).numFmt = "0.00";
       NUTRIENT_KEYS.forEach((key, index) => {
-        dataRow.getCell(7 + index).numFmt = nutrientNumFmt(key);
+        dataRow.getCell(8 + nameOffset + index).numFmt = nutrientNumFmt(key);
       });
     }
   }
 
   sheet.columns.forEach((col, index) => {
-    col.width = index === 1 ? 36 : 14;
+    col.width = index === nameOffset + 2 ? 36 : 14;
   });
+  sheet.getColumn(2 + nameOffset).width = 10;
+  if (includeName) sheet.getColumn(1).width = 22;
+}
+
+function surveyForJson(survey: Survey) {
+  return {
+    ...survey,
+    meals: survey.meals.map((meal) => ({
+      id: meal.id,
+      name: meal.name,
+      time: meal.time || "",
+      items: meal.items.map((item) => {
+        const food = getFood(item.foodId);
+        const nutrients = food ? scaleFood(food, item.portions) : emptyTotals();
+        return {
+          id: item.id,
+          foodId: item.foodId,
+          portions: item.portions,
+          name: food ? displayName(food.name) : "Alimento eliminado",
+          kind: food?.kind ?? "",
+          household: food?.household ?? "",
+          grams: food?.grams ?? 0,
+          ...Object.fromEntries(NUTRIENT_KEYS.map((key) => [key, roundNutrient(key, nutrients[key])])),
+        };
+      }),
+    })),
+  };
 }
 
 function writeResumen(sheet: Worksheet, surveys: Survey[]) {
@@ -332,7 +381,7 @@ async function surveyWorkbook(survey: Survey): Promise<Workbook> {
   const aporte = workbook.addWorksheet("APORTE_TOTAL");
   writePersonHeader(aporte, survey);
   writeAporteTable(aporte, survey, 10);
-  writeDetalle(workbook.addWorksheet("DETALLE"), survey);
+  writeDetalle(workbook.addWorksheet("DETALLE"), [survey]);
   return workbook;
 }
 
@@ -341,12 +390,14 @@ async function allWorkbook(surveys: Survey[]): Promise<Workbook> {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Recordatorio 24 horas";
   writeResumen(workbook.addWorksheet("RESUMEN"), surveys);
-  const used = new Set<string>(["RESUMEN"]);
+  const used = new Set<string>(["RESUMEN", "DETALLE"]);
   for (const survey of surveys) {
     const aporte = workbook.addWorksheet(sheetName(survey.personName || "Sin nombre", used));
     writePersonHeader(aporte, survey);
     writeAporteTable(aporte, survey, 10);
+    writeDetalle(workbook.addWorksheet(sheetName(`${survey.personName || "Sin nombre"} comidas`, used)), [survey]);
   }
+  writeDetalle(workbook.addWorksheet("DETALLE"), surveys, true);
   return workbook;
 }
 
@@ -359,11 +410,11 @@ export async function exportAllExcel(surveys: Survey[]): Promise<void> {
 }
 
 export function exportSurveyJson(survey: Survey): void {
-  downloadFile(jsonFile(survey, `encuesta-${fileSlug(survey.personName)}.json`));
+  downloadFile(jsonFile(surveyForJson(survey), `encuesta-${fileSlug(survey.personName)}.json`));
 }
 
 export function exportAllJson(surveys: Survey[]): void {
-  downloadFile(jsonFile(surveys, "encuestas-recordatorio.json"));
+  downloadFile(jsonFile(surveys.map(surveyForJson), "encuestas-recordatorio.json"));
 }
 
 export async function shareSurveyExcel(survey: Survey): Promise<void> {
@@ -374,7 +425,7 @@ export async function shareSurveyExcel(survey: Survey): Promise<void> {
 }
 
 export async function shareSurveyJson(survey: Survey): Promise<void> {
-  await shareFile(jsonFile(survey, `encuesta-${fileSlug(survey.personName)}.json`), `Ficha ${survey.personName || "sin nombre"}`);
+  await shareFile(jsonFile(surveyForJson(survey), `encuesta-${fileSlug(survey.personName)}.json`), `Ficha ${survey.personName || "sin nombre"}`);
 }
 
 export async function shareAllExcel(surveys: Survey[]): Promise<void> {
@@ -382,5 +433,5 @@ export async function shareAllExcel(surveys: Survey[]): Promise<void> {
 }
 
 export async function shareAllJson(surveys: Survey[]): Promise<void> {
-  await shareFile(jsonFile(surveys, "encuestas-recordatorio.json"), "Fichas recordatorio");
+  await shareFile(jsonFile(surveys.map(surveyForJson), "encuestas-recordatorio.json"), "Fichas recordatorio");
 }

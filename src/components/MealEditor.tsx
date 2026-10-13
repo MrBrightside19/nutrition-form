@@ -71,22 +71,50 @@ export function MealEditor({ survey, mealId, onMealId, onChange, onSummary, onBa
         Datos de la persona
       </button>
       <h1 className="mt-4 font-serif text-3xl text-forest">{survey.personName || "Sin nombre"}</h1>
+      <h2 className="mt-2 font-serif text-xl text-ink">
+        {meal.name}
+        {meal.time ? ` · ${meal.time}` : ""}
+      </h2>
 
-      <div className="-mx-4 mt-5 flex gap-2 overflow-x-auto px-4 pb-1">
-        {survey.meals.map((entry) => (
-          <button
-            key={entry.id}
-            type="button"
-            onClick={() => onMealId(entry.id)}
-            className={`shrink-0 rounded-full px-4 py-2 text-sm font-semibold ${
-              entry.id === meal.id ? "bg-forest text-cream" : "bg-paper text-ink"
-            }`}
-          >
-            {entry.name}
-            {entry.items.length > 0 ? ` · ${entry.items.length}` : ""}
-          </button>
-        ))}
+      <div className="-mx-4 mt-4 flex gap-2 overflow-x-auto px-4 pb-1">
+        {survey.meals.map((entry) => {
+          const active = entry.id === meal.id;
+          return (
+            <button
+              key={entry.id}
+              type="button"
+              onClick={() => onMealId(entry.id)}
+              aria-current={active ? "true" : undefined}
+              className={`shrink-0 rounded-2xl border px-4 py-2.5 text-sm font-semibold ${
+                active
+                  ? "border-forest bg-forest text-cream"
+                  : "border-dashed border-line bg-paper text-muted"
+              }`}
+            >
+              {active ? "▸ " : ""}
+              {entry.name}
+              {entry.items.length > 0 ? ` · ${entry.items.length}` : ""}
+            </button>
+          );
+        })}
       </div>
+
+      <label className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-line bg-paper px-4 py-3">
+        <span className="text-sm font-semibold">Horario</span>
+        <input
+          type="time"
+          value={meal.time}
+          onChange={(event) =>
+            onChange({
+              ...survey,
+              meals: survey.meals.map((entry) =>
+                entry.id === meal.id ? { ...entry, time: event.target.value } : entry,
+              ),
+            })
+          }
+          className="rounded-xl border border-line bg-cream px-3 py-2 outline-none ring-forest focus:ring-2"
+        />
+      </label>
 
       <div className="mt-5 flex items-end justify-between">
         <div>

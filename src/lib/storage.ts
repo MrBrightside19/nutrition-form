@@ -1,4 +1,19 @@
-import { MEAL_OPTIONS, type Survey } from "../types";
+import { MEAL_OPTIONS, type Meal, type Survey } from "../types";
+
+function normalizeMeal(meal: Meal): Meal {
+  return {
+    ...meal,
+    time: typeof meal.time === "string" ? meal.time : "",
+    items: Array.isArray(meal.items) ? meal.items : [],
+  };
+}
+
+function normalizeSurvey(survey: Survey): Survey {
+  return {
+    ...survey,
+    meals: Array.isArray(survey.meals) ? survey.meals.map(normalizeMeal) : [],
+  };
+}
 
 const SURVEYS_KEY = "r24:surveys";
 const INTERVIEWER_KEY = "r24:interviewer";
@@ -27,7 +42,7 @@ export function loadSurveys(): Survey[] {
     const raw = localStorage.getItem(SURVEYS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as Survey[];
-    return parsed.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    return parsed.map(normalizeSurvey).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   } catch {
     return [];
   }
@@ -56,7 +71,7 @@ export function createSurvey(interviewer: string): Survey {
     personName: "",
     age: "",
     sex: "",
-    meals: MEAL_OPTIONS.map((meal) => ({ id: meal.id, name: meal.name, items: [] })),
+    meals: MEAL_OPTIONS.map((meal) => ({ id: meal.id, name: meal.name, time: "", items: [] })),
   };
 }
 
@@ -68,7 +83,7 @@ export function importSurveys(payload: unknown): number {
 
   for (const item of incoming) {
     if (!item || typeof item !== "object" || !("id" in item) || !("meals" in item)) continue;
-    const survey = item as Survey;
+    const survey = normalizeSurvey(item as Survey);
     if (!byId.has(survey.id)) added += 1;
     byId.set(survey.id, survey);
   }

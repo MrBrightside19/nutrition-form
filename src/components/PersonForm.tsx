@@ -21,7 +21,7 @@ export function PersonForm({ survey, onChange, onContinue, onBack }: Props) {
     const exists = survey.meals.some((meal) => meal.id === id);
     const meals = exists
       ? survey.meals.filter((meal) => meal.id !== id)
-      : [...survey.meals, { id, name, items: [] }].sort(
+      : [...survey.meals, { id, name, time: "", items: [] }].sort(
           (a, b) => MEAL_OPTIONS.findIndex((m) => m.id === a.id) - MEAL_OPTIONS.findIndex((m) => m.id === b.id),
         );
     onChange({ ...survey, meals });
@@ -73,10 +73,12 @@ export function PersonForm({ survey, onChange, onContinue, onBack }: Props) {
             type="button"
             onClick={() => toggleMeal(meal.id, meal.name)}
             className={`rounded-2xl border px-3 py-3 text-sm font-semibold ${
-              selected.has(meal.id) ? "border-forest bg-forest text-cream" : "border-line bg-paper"
+              selected.has(meal.id)
+                ? "border-forest bg-forest text-cream"
+                : "border-dashed border-line bg-paper text-muted"
             }`}
           >
-            {meal.name}
+            {selected.has(meal.id) ? `✓ ${meal.name}` : meal.name}
           </button>
         ))}
       </div>

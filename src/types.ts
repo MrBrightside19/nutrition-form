@@ -58,6 +58,7 @@ export type MealItem = {
 export type Meal = {
   id: string;
   name: string;
+  time: string;
   items: MealItem[];
 };
 
