@@ -1,4 +1,6 @@
-import { MEAL_OPTIONS, type Meal, type Survey } from "../types";
+import { MEAL_OPTIONS, type ActivityLevel, type Meal, type Survey } from "../types";
+
+const ACTIVITY_LEVELS: ActivityLevel[] = ["ligera", "moderada", "alta"];
 
 function normalizeMeal(meal: Meal): Meal {
   return {
@@ -11,6 +13,10 @@ function normalizeMeal(meal: Meal): Meal {
 function normalizeSurvey(survey: Survey): Survey {
   return {
     ...survey,
+    weight: typeof survey.weight === "string" ? survey.weight : survey.weight != null ? String(survey.weight) : "",
+    activityLevel: ACTIVITY_LEVELS.includes(survey.activityLevel as ActivityLevel)
+      ? (survey.activityLevel as ActivityLevel)
+      : "",
     meals: Array.isArray(survey.meals) ? survey.meals.map(normalizeMeal) : [],
   };
 }
@@ -71,6 +77,8 @@ export function createSurvey(interviewer: string): Survey {
     personName: "",
     age: "",
     sex: "",
+    weight: "",
+    activityLevel: "",
     meals: MEAL_OPTIONS.map((meal) => ({ id: meal.id, name: meal.name, time: "", items: [] })),
   };
 }

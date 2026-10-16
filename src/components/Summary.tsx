@@ -1,6 +1,7 @@
 import type { NutrientKey, Survey } from "../types";
 import { NUTRIENT_KEYS, NUTRIENT_LABELS } from "../types";
 import { formatNutrient, mealTotals, surveyTotals } from "../lib/calc";
+import { activityLabel, basalMetabolism, energyBalance, formatEnergy, totalEnergyExpenditure } from "../lib/energy";
 import { exportSurveyExcel, exportSurveyJson, shareSurveyExcel, shareSurveyJson } from "../lib/export";
 
 type Props = {
@@ -9,10 +10,13 @@ type Props = {
   onHome: () => void;
 };
 
-const HIGHLIGHT: NutrientKey[] = ["kcal", "carb", "fat", "protein", "fiber"];
+const HIGHLIGHT: NutrientKey[] = ["carb", "fat", "protein", "fiber"];
 
 export function Summary({ survey, onBack, onHome }: Props) {
   const total = surveyTotals(survey);
+  const mb = basalMetabolism(survey);
+  const get = totalEnergyExpenditure(survey);
+  const balance = energyBalance(total.kcal, survey);
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg px-4 pb-28 pt-[max(1rem,env(safe-area-inset-top))]">
@@ -23,10 +27,31 @@ export function Summary({ survey, onBack, onHome }: Props) {
       <p className="mt-2 text-sm text-muted">
         {survey.personName || "Sin nombre"}
         {survey.age ? ` · ${survey.age} años` : ""}
+        {survey.weight ? ` · ${survey.weight} kg` : ""}
         {survey.sex ? ` · ${survey.sex}` : ""}
+        {survey.activityLevel ? ` · ${activityLabel(survey.activityLevel)}` : ""}
       </p>
 
       <div className="mt-5 grid grid-cols-2 gap-2">
+        <div className="rounded-2xl border border-line bg-paper px-4 py-3">
+          <p className="text-xs uppercase tracking-wide text-muted">Ingesta</p>
+          <p className="num mt-1 font-serif text-2xl text-forest">{formatNutrient("kcal", total.kcal)}</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-paper px-4 py-3">
+          <p className="text-xs uppercase tracking-wide text-muted">MB</p>
+          <p className="num mt-1 font-serif text-2xl text-forest">{formatEnergy(mb)}</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-paper px-4 py-3">
+          <p className="text-xs uppercase tracking-wide text-muted">GET</p>
+          <p className="num mt-1 font-serif text-2xl text-forest">{formatEnergy(get)}</p>
+        </div>
+        <div className="rounded-2xl border border-line bg-paper px-4 py-3">
+          <p className="text-xs uppercase tracking-wide text-muted">Balance</p>
+          <p className="num mt-1 font-serif text-2xl text-forest">{formatEnergy(balance)}</p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-2">
         {HIGHLIGHT.map((key) => (
           <div key={key} className="rounded-2xl border border-line bg-paper px-4 py-3">
             <p className="text-xs uppercase tracking-wide text-muted">{NUTRIENT_LABELS[key]}</p>

@@ -1,4 +1,5 @@
 export type Sex = "mujer" | "hombre" | "otro";
+export type ActivityLevel = "ligera" | "moderada" | "alta";
 
 export type Food = {
   id: number;
@@ -70,8 +71,28 @@ export type Survey = {
   personName: string;
   age: string;
   sex: Sex | "";
+  weight: string;
+  activityLevel: ActivityLevel | "";
   meals: Meal[];
 };
+
+export const ACTIVITY_OPTIONS: { id: ActivityLevel; label: string; help: string }[] = [
+  {
+    id: "ligera",
+    label: "Ligera",
+    help: "Varias horas al día sedentarias, sin deporte regular y con auto para desplazarse. Ocio: TV, leer, computador o videojuegos. Ej.: sentado o de pie, pasear en llano, hogar ligero, oficina, estudiar, conducir. Actividad ligera o moderada 2 o 3 veces por semana.",
+  },
+  {
+    id: "moderada",
+    label: "Moderada",
+    help: "Ej.: pasear a 5 km/h, casa pesada (cristales, barrer), carpinteros, construcción (excepto trabajos duros), industria química o eléctrica, agrícola mecanizada, golf, cuidado de niños. Más de 30 min/día de actividad moderada y 20 min/semana de vigorosa.",
+  },
+  {
+    id: "alta",
+    label: "Alta",
+    help: "Andan largas distancias a diario, usan bicicleta, actividades vigorosas o deportes de alto esfuerzo varias horas. Ej.: agrícola no mecanizada, mineros, forestales, cavar, cortar leña, fútbol, tenis, jogging, bailar, esquiar. Actividad moderada o vigorosa todos los días.",
+  },
+];
 
 export const MEAL_OPTIONS = [
   { id: "desayuno", name: "Desayuno" },

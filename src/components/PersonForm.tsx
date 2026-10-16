@@ -1,4 +1,6 @@
-import { MEAL_OPTIONS, type Sex, type Survey } from "../types";
+import { useState } from "react";
+import { ACTIVITY_OPTIONS, MEAL_OPTIONS, type Sex, type Survey } from "../types";
+import { parseWeight } from "../lib/energy";
 
 type Props = {
   survey: Survey;
@@ -14,8 +16,15 @@ const SEX_OPTIONS: { id: Sex; label: string }[] = [
 ];
 
 export function PersonForm({ survey, onChange, onContinue, onBack }: Props) {
+  const [showActivityHelp, setShowActivityHelp] = useState(false);
   const selected = new Set(survey.meals.map((meal) => meal.id));
-  const canContinue = survey.personName.trim().length > 1 && survey.meals.length > 0;
+  const canContinue =
+    survey.personName.trim().length > 1 &&
+    survey.age.trim().length > 0 &&
+    survey.sex !== "" &&
+    parseWeight(survey.weight) > 0 &&
+    survey.activityLevel !== "" &&
+    survey.meals.length > 0;
 
   function toggleMeal(id: string, name: string) {
     const exists = survey.meals.some((meal) => meal.id === id);
@@ -49,6 +58,14 @@ export function PersonForm({ survey, onChange, onContinue, onBack }: Props) {
         className="mt-2 w-full rounded-2xl border border-line bg-paper px-4 py-3 outline-none ring-forest focus:ring-2"
       />
 
+      <label className="mt-4 block text-sm font-semibold">Peso (kg)</label>
+      <input
+        inputMode="decimal"
+        value={survey.weight}
+        onChange={(event) => onChange({ ...survey, weight: event.target.value.replace(/[^\d.,]/g, "") })}
+        className="mt-2 w-full rounded-2xl border border-line bg-paper px-4 py-3 outline-none ring-forest focus:ring-2"
+      />
+
       <p className="mt-4 text-sm font-semibold">Sexo</p>
       <div className="mt-2 grid grid-cols-3 gap-2">
         {SEX_OPTIONS.map((option) => (
@@ -58,6 +75,50 @@ export function PersonForm({ survey, onChange, onContinue, onBack }: Props) {
             onClick={() => onChange({ ...survey, sex: option.id })}
             className={`rounded-2xl border px-3 py-2.5 text-sm font-semibold ${
               survey.sex === option.id ? "border-forest bg-forest text-cream" : "border-line bg-paper"
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-4 flex items-center gap-2">
+        <p className="text-sm font-semibold">Actividad física</p>
+        <button
+          type="button"
+          aria-label="Qué significa cada nivel"
+          aria-expanded={showActivityHelp}
+          aria-controls="actividad-ayuda"
+          onClick={() => setShowActivityHelp((open) => !open)}
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-sm font-bold ${
+            showActivityHelp ? "border-forest bg-forest text-cream" : "border-forest text-forest"
+          }`}
+        >
+          ?
+        </button>
+      </div>
+      {showActivityHelp ? (
+        <div
+          id="actividad-ayuda"
+          role="note"
+          className="mt-2 space-y-3 rounded-2xl border border-line bg-paper px-4 py-3 text-sm text-muted"
+        >
+          {ACTIVITY_OPTIONS.map((option) => (
+            <p key={option.id}>
+              <span className="font-semibold text-ink">{option.label}. </span>
+              {option.help}
+            </p>
+          ))}
+        </div>
+      ) : null}
+      <div className="mt-2 grid grid-cols-3 gap-2">
+        {ACTIVITY_OPTIONS.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => onChange({ ...survey, activityLevel: option.id })}
+            className={`rounded-2xl border px-3 py-2.5 text-sm font-semibold ${
+              survey.activityLevel === option.id ? "border-forest bg-forest text-cream" : "border-line bg-paper"
             }`}
           >
             {option.label}

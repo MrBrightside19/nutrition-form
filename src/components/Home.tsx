@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import type { Survey } from "../types";
 import { formatNutrient, surveyTotals } from "../lib/calc";
+import { activityLabel } from "../lib/energy";
 import { exportAllExcel, exportAllJson, shareAllExcel, shareAllJson } from "../lib/export";
 
 type Props = {
@@ -68,7 +69,9 @@ export function Home({
                       <p className="font-semibold">{survey.personName || "Sin nombre"}</p>
                       <p className="mt-1 text-sm text-muted">
                         {survey.age ? `${survey.age} años` : "Edad s/n"}
+                        {survey.weight ? ` · ${survey.weight} kg` : ""}
                         {survey.sex ? ` · ${survey.sex}` : ""}
+                        {survey.activityLevel ? ` · ${activityLabel(survey.activityLevel)}` : ""}
                         {survey.interviewer ? ` · ${survey.interviewer}` : ""}
                       </p>
                     </div>

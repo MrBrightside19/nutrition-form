@@ -2,6 +2,7 @@ import type { Workbook, Worksheet } from "exceljs";
 import type { NutrientKey, Survey } from "../types";
 import { NUTRIENT_KEYS, NUTRIENT_LABELS } from "../types";
 import { emptyTotals, mealTotals, roundNutrient, scaleFood, surveyTotals } from "./calc";
+import { activityFactor, activityLabel, basalMetabolism, energyBalance, parseWeight, totalEnergyExpenditure } from "./energy";
 import { displayName, getFood } from "./foods";
 
 const BLACK = "FF000000";
@@ -192,19 +193,36 @@ function writeAporteTable(sheet: Worksheet, survey: Survey, headerRow: number) {
 }
 
 function writePersonHeader(sheet: Worksheet, survey: Survey) {
-  const lines = [
+  const total = surveyTotals(survey);
+  const weight = parseWeight(survey.weight);
+  const pal = activityFactor(survey);
+  const mb = basalMetabolism(survey);
+  const get = totalEnergyExpenditure(survey);
+  const intake = roundNutrient("kcal", total.kcal);
+  const balance = energyBalance(total.kcal, survey);
+  const lines: [string, string | number][] = [
     ["Nombre", survey.personName || "Sin nombre"],
     ["Edad", survey.age],
     ["Sexo", survey.sex],
+    ["Peso (kg)", weight || survey.weight],
+    ["Actividad", activityLabel(survey.activityLevel)],
+    ["Factor AF", pal ?? ""],
+    ["MB (kcal)", mb ?? ""],
+    ["GET (kcal)", get ?? ""],
+    ["Ingesta (kcal)", intake],
+    ["Balance (kcal)", balance ?? ""],
     ["Encuestador", survey.interviewer],
     ["Fecha", new Date(survey.createdAt).toLocaleString("es-CL")],
   ];
+  const energyFmt: Record<number, string> = { 6: "0.00", 7: "0.0", 8: "0.0", 9: "0.00", 10: "0.0" };
   lines.forEach((pair, index) => {
     const row = sheet.getRow(index + 1);
     row.getCell(1).value = pair[0];
     row.getCell(2).value = pair[1];
     row.getCell(1).font = { name: "Arial", size: 10, bold: true };
     row.getCell(2).font = { name: "Arial", size: 10 };
+    const fmt = energyFmt[index + 1];
+    if (fmt && typeof pair[1] === "number") row.getCell(2).numFmt = fmt;
   });
 }
 
@@ -274,8 +292,14 @@ function writeDetalle(sheet: Worksheet, surveys: Survey[], includeName = false) 
 }
 
 function surveyForJson(survey: Survey) {
+  const total = surveyTotals(survey);
   return {
     ...survey,
+    metabolismoBasal: basalMetabolism(survey),
+    factorActividad: activityFactor(survey),
+    gastoEnergeticoTotal: totalEnergyExpenditure(survey),
+    ingestaKcal: roundNutrient("kcal", total.kcal),
+    balanceKcal: energyBalance(total.kcal, survey),
     meals: survey.meals.map((meal) => ({
       id: meal.id,
       name: meal.name,
@@ -299,7 +323,21 @@ function surveyForJson(survey: Survey) {
 }
 
 function writeResumen(sheet: Worksheet, surveys: Survey[]) {
-  const headers = ["Nombre", "Edad", "Sexo", "Encuestador", "Fecha", ...EXCEL_NUTRIENT_HEADERS];
+  const headers = [
+    "Nombre",
+    "Edad",
+    "Sexo",
+    "Peso (kg)",
+    "Actividad",
+    "Factor AF",
+    "MB",
+    "GET",
+    "Ingesta",
+    "Balance",
+    "Encuestador",
+    "Fecha",
+    ...EXCEL_NUTRIENT_HEADERS,
+  ];
   const header = sheet.getRow(1);
   header.height = 36;
   headers.forEach((label, index) => {
@@ -310,6 +348,8 @@ function writeResumen(sheet: Worksheet, surveys: Survey[]) {
     paintBlack(cell);
   });
 
+  const energyStart = 5;
+  const nutrientStart = 12;
   surveys.forEach((survey, index) => {
     const total = surveyTotals(survey);
     const row = sheet.getRow(index + 2);
@@ -317,6 +357,13 @@ function writeResumen(sheet: Worksheet, surveys: Survey[]) {
       survey.personName,
       survey.age,
       survey.sex,
+      parseWeight(survey.weight) || survey.weight,
+      activityLabel(survey.activityLevel),
+      activityFactor(survey) ?? "",
+      basalMetabolism(survey) ?? "",
+      totalEnergyExpenditure(survey) ?? "",
+      roundNutrient("kcal", total.kcal),
+      energyBalance(total.kcal, survey) ?? "",
       survey.interviewer,
       new Date(survey.createdAt).toLocaleString("es-CL"),
       ...NUTRIENT_KEYS.map((key) => roundNutrient(key, total[key])),
@@ -325,8 +372,11 @@ function writeResumen(sheet: Worksheet, surveys: Survey[]) {
       const cell = row.getCell(col + 1);
       cell.value = value;
       cell.font = { name: "Arial", size: 10 };
-      if (col >= 5) {
-        cell.numFmt = nutrientNumFmt(NUTRIENT_KEYS[col - 5]);
+      if (col >= nutrientStart) {
+        cell.numFmt = nutrientNumFmt(NUTRIENT_KEYS[col - nutrientStart]);
+        cell.alignment = { horizontal: "center" };
+      } else if (col >= energyStart && col <= 9 && typeof value === "number") {
+        cell.numFmt = col === 5 || col === 8 ? "0.00" : "0.0";
         cell.alignment = { horizontal: "center" };
       }
     });
@@ -335,9 +385,12 @@ function writeResumen(sheet: Worksheet, surveys: Survey[]) {
   sheet.getColumn(1).width = 22;
   sheet.getColumn(2).width = 8;
   sheet.getColumn(3).width = 10;
-  sheet.getColumn(4).width = 16;
-  sheet.getColumn(5).width = 20;
-  for (let col = 6; col <= headers.length; col += 1) sheet.getColumn(col).width = 11;
+  sheet.getColumn(4).width = 10;
+  sheet.getColumn(5).width = 12;
+  sheet.getColumn(11).width = 16;
+  sheet.getColumn(12).width = 20;
+  for (let col = 6; col <= 10; col += 1) sheet.getColumn(col).width = 11;
+  for (let col = 13; col <= headers.length; col += 1) sheet.getColumn(col).width = 11;
 }
 
 const XLSX_TYPE = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
@@ -380,7 +433,7 @@ async function surveyWorkbook(survey: Survey): Promise<Workbook> {
   workbook.creator = "Recordatorio 24 horas";
   const aporte = workbook.addWorksheet("APORTE_TOTAL");
   writePersonHeader(aporte, survey);
-  writeAporteTable(aporte, survey, 10);
+  writeAporteTable(aporte, survey, 14);
   writeDetalle(workbook.addWorksheet("DETALLE"), [survey]);
   return workbook;
 }
@@ -394,7 +447,7 @@ async function allWorkbook(surveys: Survey[]): Promise<Workbook> {
   for (const survey of surveys) {
     const aporte = workbook.addWorksheet(sheetName(survey.personName || "Sin nombre", used));
     writePersonHeader(aporte, survey);
-    writeAporteTable(aporte, survey, 10);
+    writeAporteTable(aporte, survey, 14);
     writeDetalle(workbook.addWorksheet(sheetName(`${survey.personName || "Sin nombre"} comidas`, used)), [survey]);
   }
   writeDetalle(workbook.addWorksheet("DETALLE"), surveys, true);
